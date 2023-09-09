@@ -14,7 +14,6 @@ import (
 	"github.com/chromedp/chromedp"
 
 	"github.com/go-chi/chi"
-	"github.com/go-chi/render"
 )
 
 func main() {
@@ -50,21 +49,17 @@ func main() {
 
 	r := chi.NewRouter()
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		log.Printf("Request received from %s\n", r.RemoteAddr)
 		cookies := getCookies(ctx, term, username, password)
+		log.Printf("Request completed from %s in %s\n", r.RemoteAddr, time.Since(start))
 
-		list := []render.Renderer{}
-		for _, cookie := range cookies {
-			list = append(list, NewCookieResponse(cookie))
-		}
-
-		render.RenderList(w, r, list)
-
-		log.Println("Request completed")
+		w.Write([]byte(cookies))
 	})
 	http.ListenAndServe(fmt.Sprintf(":%d", *portFlag), r)
 }
 
-func getCookies(ctx context.Context, term *Term, username string, password string) []*network.Cookie {
+func getCookies(ctx context.Context, term *Term, username string, password string) string {
 	// navigate to webreg
 	log.Println("Navigating to webreg...")
 	if err := chromedp.Run(ctx, chromedp.Navigate("https://act.ucsd.edu/webreg2/start")); err != nil {
@@ -177,7 +172,12 @@ func getCookies(ctx context.Context, term *Term, username string, password strin
 		log.Fatal(err)
 	}
 
-	return cookies
+	result := ""
+	for _, cookie := range cookies {
+		result += fmt.Sprintf("%s=%s;", cookie.Name, cookie.Value)
+	}
+
+	return result
 }
 
 type Term struct {
@@ -219,23 +219,4 @@ func clickInFrame(iframe *cdp.Node, selector string) chromedp.ActionFunc {
 
 		return chromedp.MouseClickNode(nodes[0]).Do(ctx)
 	}
-}
-
-type CookieResponse struct {
-	Name  string `json:"name"`
-	Value string `json:"value"`
-
-	Elapsed int64 `json:"elapsed"`
-}
-
-func NewCookieResponse(cookie *network.Cookie) *CookieResponse {
-	return &CookieResponse{
-		Name:  cookie.Name,
-		Value: cookie.Value,
-	}
-}
-
-func (rd *CookieResponse) Render(w http.ResponseWriter, r *http.Request) error {
-	rd.Elapsed = 10
-	return nil
 }
