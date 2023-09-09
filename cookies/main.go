@@ -48,14 +48,18 @@ func main() {
 	defer cancel()
 
 	r := chi.NewRouter()
-	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+	r.Get("/cookie", func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		log.Printf("Request received from %s\n", r.RemoteAddr)
 		cookies := getCookies(ctx, term, username, password)
 		log.Printf("Request completed from %s in %s\n", r.RemoteAddr, time.Since(start))
 
-		w.Write([]byte(cookies))
+		w.Write([]byte(fmt.Sprintf(`{"cookie":"%s"}`, cookies)))
 	})
+
+	// warm up call
+	getCookies(ctx, term, username, password)
+
 	http.ListenAndServe(fmt.Sprintf(":%d", *portFlag), r)
 }
 
