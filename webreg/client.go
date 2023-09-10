@@ -54,7 +54,8 @@ func (c WebregClient) GetCourseInfo(subject string, course string) (*CourseInfo,
 
 	resp, err := client.Do(req)
 	if err != nil {
-		panic(err)
+		c.GetCookiesFromServer()
+		return c.GetCourseInfo(subject, course)
 	}
 
 	defer resp.Body.Close()

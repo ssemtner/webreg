@@ -73,15 +73,15 @@ func GetCookies(ctx context.Context, term *webreg.Term, username string, passwor
 			if err := chromedp.Run(ctx, chromedp.Tasks{
 				logAction("Canceling Duo login..."),
 				clickInFrame(iframe, ".btn-cancel"),
-				chromedp.Sleep(2 * time.Second),
+				chromedp.Sleep(time.Second),
 
 				logAction("Checking remember me..."),
 				clickInFrame(iframe, "#remember_me_label_text"),
-				chromedp.Sleep(2 * time.Second),
+				chromedp.Sleep(time.Second),
 
 				logAction("Sending another push..."),
 				clickInFrame(iframe, "#auth_methods > fieldset > div.row-label.push-label > button"),
-				chromedp.Sleep(2 * time.Second),
+				chromedp.Sleep(time.Second),
 
 				logAction("Waiting for term selection page..."),
 				chromedp.WaitVisible("#startpage-button-go", chromedp.ByID),

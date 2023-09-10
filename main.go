@@ -1,21 +1,13 @@
 package main
 
-import "webreg/webreg"
+import (
+	"flag"
+	"webreg/discord"
+)
 
 func main() {
-	client := webreg.NewWebregClient(webreg.Term{
-		Code:   "FA23",
-		Option: "5320:::FA23",
-	})
+	token := flag.String("token", "", "discord bot token")
+	flag.Parse()
 
-	client.GetCookiesFromServer()
-
-	result, err := client.GetCourseInfo("CSE", "20")
-	if err != nil {
-		panic(err)
-	}
-
-	for _, section := range result.Sections {
-		section.Display()
-	}
+	discord.Run(*token)
 }
