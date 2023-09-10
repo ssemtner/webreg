@@ -1,69 +1,20 @@
-package main
+package autologin
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"log"
-	"net/http"
-	"os"
 	"time"
+	"webreg/webreg"
 
 	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
-
-	"github.com/go-chi/chi"
 )
 
-func main() {
-	termFlag := flag.String("term", "", "term code")
-	portFlag := flag.Int("port", 3000, "port to listen on")
-	usernameFlag := flag.String("username", "", "UCSD username")
-	passwordFlag := flag.String("password", "", "UCSD password")
+// TODO: fix incomplete logic when login needed but not duo 2 factor
 
-	flag.Parse()
-
-	term, err := ParseTerm(*termFlag)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	username := *usernameFlag
-	password := *passwordFlag
-
-	if username == "" {
-		username = os.Getenv("WEBREG_USERNAME")
-	}
-
-	if password == "" {
-		password = os.Getenv("WEBREG_PASSWORD")
-	}
-
-	if username == "" || password == "" {
-		log.Fatal("please provide a username and password via flags or the WEBREG_USERNAME and WEBREG_PASSWORD environment variables")
-	}
-
-	ctx, cancel := chromedp.NewContext(context.Background())
-	defer cancel()
-
-	r := chi.NewRouter()
-	r.Get("/cookie", func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		log.Printf("Request received from %s\n", r.RemoteAddr)
-		cookies := getCookies(ctx, term, username, password)
-		log.Printf("Request completed from %s in %s\n", r.RemoteAddr, time.Since(start))
-
-		w.Write([]byte(fmt.Sprintf(`{"cookie":"%s"}`, cookies)))
-	})
-
-	// warm up call
-	getCookies(ctx, term, username, password)
-
-	http.ListenAndServe(fmt.Sprintf(":%d", *portFlag), r)
-}
-
-func getCookies(ctx context.Context, term *Term, username string, password string) string {
+func GetCookies(ctx context.Context, term *webreg.Term, username string, password string) string {
 	// navigate to webreg
 	log.Println("Navigating to webreg...")
 	if err := chromedp.Run(ctx, chromedp.Navigate("https://act.ucsd.edu/webreg2/start")); err != nil {
@@ -106,6 +57,7 @@ func getCookies(ctx context.Context, term *Term, username string, password strin
 		}
 
 		// determine which one loaded
+		var nodes []*cdp.Node
 		if err := chromedp.Run(ctx, chromedp.Nodes("#duo_iframe,#startpage-button-go", &nodes)); err != nil {
 			log.Fatal(err)
 		}
@@ -182,27 +134,6 @@ func getCookies(ctx context.Context, term *Term, username string, password strin
 	}
 
 	return result
-}
-
-type Term struct {
-	Code   string
-	Option string
-}
-
-func ParseTerm(code string) (*Term, error) {
-	options := map[string]string{
-		"FA23": "5320:::FA23",
-	}
-
-	option, ok := options[code]
-	if !ok {
-		return nil, fmt.Errorf("invalid term code")
-	}
-
-	return &Term{
-		Code:   code,
-		Option: option,
-	}, nil
 }
 
 func logAction(value string) chromedp.ActionFunc {
