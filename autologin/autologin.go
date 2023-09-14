@@ -14,6 +14,10 @@ import (
 
 // TODO: fix incomplete logic when login needed but not duo 2 factor
 
+func NewContext() (context.Context, context.CancelFunc) {
+	return chromedp.NewContext(context.Background())
+}
+
 func GetCookies(ctx context.Context, term *webreg.Term, username string, password string) string {
 	// navigate to webreg
 	log.Println("Navigating to webreg...")
@@ -21,44 +25,25 @@ func GetCookies(ctx context.Context, term *webreg.Term, username string, passwor
 		log.Fatal(err)
 	}
 
-	// wait for term select or login form to load
-	log.Println("Waiting for term select or login form to load...")
-	if err := chromedp.Run(ctx, chromedp.WaitVisible("#startpage-button-go,#ssousername", chromedp.ByID)); err != nil {
-		log.Fatal(err)
-	}
+	pushSent := false
+	i := 0
+	for {
 
-	// determine which one loaded
-	var nodes []*cdp.Node
-	if err := chromedp.Run(ctx, chromedp.Nodes("#startpage-button-go,#ssousername", &nodes)); err != nil {
-		log.Fatal(err)
-	}
-
-	if len(nodes) != 1 {
-		log.Fatal("expected one node")
-	}
-
-	// run login procedure if login form loaded
-	if nodes[0].AttributeValue("id") == "ssousername" {
-		log.Println("Logging in...")
-
-		if err := chromedp.Run(ctx, chromedp.Tasks{
-			chromedp.SendKeys("#ssousername", username, chromedp.ByID),
-			chromedp.SendKeys("#ssopassword", password, chromedp.ByID),
-			chromedp.Click("button[type='submit']", chromedp.ByQuery),
-		}); err != nil {
-			log.Fatal(err)
+		// wait for login, term select, or duo iframe to load (if not already sent)
+		selector := "#ssousername,#startpage-select-term"
+		if !pushSent {
+			selector += ",#duo_iframe"
 		}
 
-		log.Println("Waiting for duo iframe or go button to load...")
+		log.Println("Waiting for login, term select, or duo iframe to load...")
 
-		// wait for duo iframe OR go button to load
-		if err := chromedp.Run(ctx, chromedp.WaitVisible("#duo_iframe,#startpage-button-go", chromedp.ByQuery)); err != nil {
+		if err := chromedp.Run(ctx, chromedp.WaitVisible(selector, chromedp.ByQuery)); err != nil {
 			log.Fatal(err)
 		}
 
 		// determine which one loaded
 		var nodes []*cdp.Node
-		if err := chromedp.Run(ctx, chromedp.Nodes("#duo_iframe,#startpage-button-go", &nodes)); err != nil {
+		if err := chromedp.Run(ctx, chromedp.Nodes(selector, &nodes)); err != nil {
 			log.Fatal(err)
 		}
 
@@ -66,8 +51,23 @@ func GetCookies(ctx context.Context, term *webreg.Term, username string, passwor
 			log.Fatal("expected one node")
 		}
 
-		// run duo login procedure if duo iframe loaded
-		if nodes[0].AttributeValue("id") == "duo_iframe" {
+		if nodes[0].AttributeValue("id") == "ssousername" {
+			// login form loaded
+			log.Println("Login form loaded, logging in...")
+
+			if err := chromedp.Run(ctx, chromedp.Tasks{
+				chromedp.SendKeys("#ssousername", username, chromedp.ByID),
+				chromedp.SendKeys("#ssopassword", password, chromedp.ByID),
+				chromedp.Click("button[type='submit']", chromedp.ByQuery),
+			}); err != nil {
+				log.Fatal(err)
+			}
+
+			log.Println("Logged in, waiting for term select or duo iframe to load...")
+		} else if nodes[0].AttributeValue("id") == "duo_iframe" {
+			// duo iframe loaded
+			log.Println("Duo iframe loaded")
+
 			iframe := nodes[0]
 
 			if err := chromedp.Run(ctx, chromedp.Tasks{
@@ -83,32 +83,38 @@ func GetCookies(ctx context.Context, term *webreg.Term, username string, passwor
 				clickInFrame(iframe, "#auth_methods > fieldset > div.row-label.push-label > button"),
 				chromedp.Sleep(time.Second),
 
-				logAction("Waiting for term selection page..."),
-				chromedp.WaitVisible("#startpage-button-go", chromedp.ByID),
+				logAction("Duo push sent, please approve it"),
 			}); err != nil {
 				log.Fatal(err)
 			}
 
-			log.Println("Term selection page loaded")
+			pushSent = true
+
+			log.Println("Waiting for term select to load...")
 		} else {
-			log.Println("Go button loaded, skipping Duo login...")
+			// term select loaded
+			log.Printf("Term select loaded, selecting %s\n", term.Code)
+
+			chromedp.Run(ctx, chromedp.Sleep(time.Second))
+
+			if err := chromedp.Run(ctx, chromedp.Tasks{
+				chromedp.SetValue("#startpage-select-term", term.Option, chromedp.ByID),
+				chromedp.Click("#startpage-button-go", chromedp.ByID),
+				chromedp.Sleep(2 * time.Second),
+			}); err != nil {
+				log.Fatal(err)
+			}
+
+			log.Printf("Term %s selected\n", term.Code)
+
+			break
+		}
+
+		i += 1
+		if i > 10 {
+			log.Fatal("Login page, term select page, or duo iframe did not load")
 		}
 	}
-
-	// select term
-	log.Println("Selecting term...")
-
-	chromedp.Run(ctx, chromedp.Sleep(time.Second))
-
-	if err := chromedp.Run(ctx, chromedp.Tasks{
-		chromedp.SetValue("#startpage-select-term", term.Option, chromedp.ByID),
-		chromedp.Click("#startpage-button-go", chromedp.ByID),
-		chromedp.Sleep(2 * time.Second),
-	}); err != nil {
-		log.Fatal(err)
-	}
-
-	log.Printf("Term %s selected", term.Code)
 
 	// extract cookies
 	log.Println("Extracting cookies...")
