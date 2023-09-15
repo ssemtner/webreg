@@ -107,10 +107,6 @@ func main() {
 			cachedCookies = strings.Clone(cookies)
 		}
 
-		body := make([]byte, resp.ContentLength)
-		resp.Body.Read(body)
-		log.Printf("%v", string(body))
-
 		log.Printf("Request completed from %s in %s\n", r.RemoteAddr, time.Since(start))
 
 		w.Write([]byte(cookies))
