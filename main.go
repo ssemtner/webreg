@@ -68,8 +68,7 @@ func main() {
 	})
 
 	// warm up call
-	// TODO: re-enable
-	// GetCookies(ctx, term, username, password)
+	GetCookies(ctx, term, username, password)
 
 	http.ListenAndServe(fmt.Sprintf(":%d", *portFlag), r)
 }
