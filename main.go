@@ -12,6 +12,7 @@ import (
 	"github.com/chromedp/chromedp"
 
 	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/middleware"
 )
 
 func main() {
@@ -19,6 +20,7 @@ func main() {
 	portFlag := flag.Int("port", 3000, "port to listen on")
 	usernameFlag := flag.String("username", "", "UCSD username")
 	passwordFlag := flag.String("password", "", "UCSD password")
+	tokenFlag := flag.String("token", "", "token to use for authentication")
 
 	flag.Parse()
 
@@ -47,6 +49,11 @@ func main() {
 
 	r := chi.NewRouter()
 
+	// using the basic http auth middleware as a token
+	r.Use(middleware.BasicAuth("webreg", map[string]string{
+		"user": *tokenFlag,
+	}))
+
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		log.Printf("Request received from %s\n", r.RemoteAddr)
@@ -56,8 +63,13 @@ func main() {
 		w.Write([]byte(cookies))
 	})
 
+	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("TEST"))
+	})
+
 	// warm up call
-	GetCookies(ctx, term, username, password)
+	// TODO: re-enable
+	// GetCookies(ctx, term, username, password)
 
 	http.ListenAndServe(fmt.Sprintf(":%d", *portFlag), r)
 }
