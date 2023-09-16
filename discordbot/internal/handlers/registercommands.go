@@ -32,8 +32,16 @@ func registerCommands(w http.ResponseWriter, r *http.Request) error {
 				"description": "Replies with Pong!"
 			},
 			{
-				"name": "overwrite",
-				"description": "Placeholder"
+				"name": "courseinfo",
+				"description": "Get information about a course",
+				"options": [
+					{
+						"name": "code",
+						"description": "The course code",
+						"type": 3,
+						"required": true
+					}
+				]
 			}
 		]`
 
